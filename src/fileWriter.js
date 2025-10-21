@@ -7,22 +7,46 @@ import { Packer } from 'docx';
  * Write optimized content to files with metadata
  */
 export class FileWriter {
+  constructor(exportFormat = 'original') {
+    // Export format: 'original', 'txt', 'md', 'docx'
+    this.exportFormat = exportFormat;
+  }
+
   /**
    * Save optimized content to appropriate format
    */
   async saveOptimizedContent(originalFilePath, optimizedContent, summary, outputDir) {
-    const ext = path.extname(originalFilePath).toLowerCase();
-    const baseName = path.basename(originalFilePath, ext);
-    const outputPath = path.join(outputDir, `${baseName}_optimized${ext}`);
+    const baseName = path.basename(originalFilePath, path.extname(originalFilePath));
 
     try {
-      if (ext === '.docx') {
-        await this.saveAsWordDocument(outputPath, optimizedContent, summary);
-      } else {
-        // For PDF and text files, save as markdown
-        const markdownPath = path.join(outputDir, `${baseName}_optimized.md`);
-        await this.saveAsMarkdown(markdownPath, optimizedContent, summary);
-        return markdownPath;
+      // Determine output format
+      let outputFormat = this.exportFormat;
+
+      if (outputFormat === 'original') {
+        const originalExt = path.extname(originalFilePath).toLowerCase();
+        outputFormat = originalExt === '.docx' ? 'docx' : 'md';
+      }
+
+      // Generate output path based on format
+      let outputPath;
+      switch (outputFormat) {
+        case 'txt':
+          outputPath = path.join(outputDir, `${baseName}_optimized.txt`);
+          await this.saveAsText(outputPath, optimizedContent, summary);
+          break;
+
+        case 'md':
+          outputPath = path.join(outputDir, `${baseName}_optimized.md`);
+          await this.saveAsMarkdown(outputPath, optimizedContent, summary);
+          break;
+
+        case 'docx':
+          outputPath = path.join(outputDir, `${baseName}_optimized.docx`);
+          await this.saveAsWordDocument(outputPath, optimizedContent, summary);
+          break;
+
+        default:
+          throw new Error(`Unsupported export format: ${outputFormat}`);
       }
 
       return outputPath;
@@ -258,6 +282,36 @@ export class FileWriter {
   }
 
   /**
+   * Save content as plain text file
+   */
+  async saveAsText(outputPath, content, summary) {
+    // Convert markdown formatting to plain text
+    let plainText = content;
+
+    // Remove markdown headers (keep the text)
+    plainText = plainText.replace(/^#{1,6}\s+(.+)$/gm, '$1');
+
+    // Remove bold/italic formatting
+    plainText = plainText.replace(/\*\*\*(.+?)\*\*\*/g, '$1');
+    plainText = plainText.replace(/\*\*(.+?)\*\*/g, '$1');
+    plainText = plainText.replace(/\*(.+?)\*/g, '$1');
+
+    // Remove inline code backticks
+    plainText = plainText.replace(/`(.+?)`/g, '$1');
+
+    // Convert bullet points to simple dashes
+    plainText = plainText.replace(/^[*-]\s+/gm, '- ');
+
+    // Add summary as header
+    const fullContent = `SUMMARY: ${summary}
+${'='.repeat(80)}
+
+${plainText}`;
+
+    await fs.writeFile(outputPath, fullContent, 'utf-8');
+  }
+
+  /**
    * Save content as markdown file
    */
   async saveAsMarkdown(outputPath, content, summary) {
@@ -274,23 +328,40 @@ ${content}`;
    * Save split topic files
    */
   async saveSplitFiles(originalFilePath, topics, optimizedContents, outputDir) {
-    const ext = path.extname(originalFilePath).toLowerCase();
-    const baseName = path.basename(originalFilePath, ext);
+    const baseName = path.basename(originalFilePath, path.extname(originalFilePath));
     const savedFiles = [];
+
+    // Determine output format
+    let outputFormat = this.exportFormat;
+    if (outputFormat === 'original') {
+      const originalExt = path.extname(originalFilePath).toLowerCase();
+      outputFormat = originalExt === '.docx' ? 'docx' : 'md';
+    }
 
     for (let i = 0; i < topics.length; i++) {
       const topic = topics[i];
       const content = optimizedContents[i];
       const sanitizedTopicName = this.sanitizeFilename(topic.topicName);
-      const outputPath = path.join(outputDir, `${baseName}_${sanitizedTopicName}${ext}`);
 
-      if (ext === '.docx') {
-        await this.saveAsWordDocument(outputPath, content, topic.description);
-      } else {
-        const markdownPath = path.join(outputDir, `${baseName}_${sanitizedTopicName}.md`);
-        await this.saveAsMarkdown(markdownPath, content, topic.description);
-        savedFiles.push(markdownPath);
-        continue;
+      let outputPath;
+      switch (outputFormat) {
+        case 'txt':
+          outputPath = path.join(outputDir, `${baseName}_${sanitizedTopicName}.txt`);
+          await this.saveAsText(outputPath, content, topic.description);
+          break;
+
+        case 'md':
+          outputPath = path.join(outputDir, `${baseName}_${sanitizedTopicName}.md`);
+          await this.saveAsMarkdown(outputPath, content, topic.description);
+          break;
+
+        case 'docx':
+          outputPath = path.join(outputDir, `${baseName}_${sanitizedTopicName}.docx`);
+          await this.saveAsWordDocument(outputPath, content, topic.description);
+          break;
+
+        default:
+          throw new Error(`Unsupported export format: ${outputFormat}`);
       }
 
       savedFiles.push(outputPath);

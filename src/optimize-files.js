@@ -22,13 +22,14 @@ class FileOptimizer {
   constructor() {
     this.extractor = new FileExtractor();
     this.claudeClient = null;
-    this.writer = new FileWriter();
+    this.writer = null; // Will be initialized with format
     this.cli = new CLI();
     this.progressTracker = new ProgressTracker('./progress.json');
 
     this.inputFolder = process.env.INPUT_FOLDER || './input-files';
     this.outputFolder = process.env.OUTPUT_FOLDER || './output-files';
     this.maxPagesBeforeSplit = parseInt(process.env.MAX_PAGES_BEFORE_SPLIT || '10');
+    this.exportFormat = process.env.EXPORT_FORMAT || null; // Will prompt if not set
   }
 
   /**
@@ -108,6 +109,30 @@ class FileOptimizer {
       // Process each file
       for (let i = 0; i < filesToProcess.length; i++) {
         const file = filesToProcess[i];
+
+        // Show file info before asking to continue
+        console.log('\n' + '═'.repeat(60));
+        console.log(`📄 File ${i + 1} of ${filesToProcess.length}: ${file.name}`);
+        console.log(`   Size: ${(file.size / 1024).toFixed(2)} KB`);
+        console.log(`   Type: ${file.extension}`);
+        console.log('═'.repeat(60) + '\n');
+
+        // Ask if user wants to process this file
+        const shouldProcess = await this.cli.promptContinueWithFile(file.name);
+
+        if (!shouldProcess) {
+          console.log(`\n⏭ Skipping ${file.name}...`);
+          continue;
+        }
+
+        // Prompt for export format if not set (only on first processed file)
+        if (!this.exportFormat) {
+          this.exportFormat = await this.cli.promptExportFormat();
+          this.writer = new FileWriter(this.exportFormat);
+          console.log(`\n📄 Export format: ${this.exportFormat.toUpperCase()}\n`);
+        }
+
+        // Process the file
         const shouldContinue = await this.processFile(file, i + 1, filesToProcess.length);
 
         if (!shouldContinue) {

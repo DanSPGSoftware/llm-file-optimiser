@@ -260,6 +260,70 @@ export class CLI {
   }
 
   /**
+   * Prompt for export format selection
+   */
+  async promptExportFormat() {
+    const response = await prompts({
+      type: 'select',
+      name: 'format',
+      message: 'Choose export format for optimized files:',
+      choices: [
+        {
+          title: chalk.cyan('[txt] Plain Text') + chalk.gray(' - Best for Copilot Studio (clean, no formatting)'),
+          value: 'txt'
+        },
+        {
+          title: chalk.blue('[md] Markdown') + chalk.gray(' - Good for Copilot Studio (structured, readable)'),
+          value: 'md'
+        },
+        {
+          title: chalk.green('[docx] Word Document') + chalk.gray(' - Formatted document (human-friendly)'),
+          value: 'docx'
+        },
+        {
+          title: chalk.yellow('[original] Keep Original Format') + chalk.gray(' - Match input file format'),
+          value: 'original'
+        }
+      ],
+      initial: 0
+    });
+
+    return response.format || 'txt';
+  }
+
+  /**
+   * Prompt to process a specific file
+   */
+  async promptContinueWithFile(fileName) {
+    const response = await prompts({
+      type: 'confirm',
+      name: 'continue',
+      message: `Process this file?`,
+      initial: true
+    });
+
+    return response.continue !== false; // Return true if user confirms or closes prompt
+  }
+
+  /**
+   * Prompt to continue to next file
+   */
+  async promptContinueToNextFile(remainingFiles) {
+    const message = remainingFiles > 0
+      ? `Continue to next file? (${remainingFiles} remaining)`
+      : 'Continue?';
+
+    const response = await prompts({
+      type: 'confirm',
+      name: 'continue',
+      message: message,
+      initial: true
+    });
+
+    return response.continue !== false; // Return true if user confirms or closes prompt
+  }
+
+  /**
    * Display progress
    */
   displayProgress() {

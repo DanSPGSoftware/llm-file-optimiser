@@ -11,6 +11,7 @@ Automated tool to optimize SharePoint documents for better topic separation and 
 - **Topic Splitting**: Automatically split large documents into separate topic-focused files
 - **Metadata Embedding**: Adds summaries to document properties for better searchability
 - **Multiple Format Support**: Handles Word documents (.docx) and PDFs (.pdf)
+- **Flexible Export Options**: Export optimized files as .txt, .md, or .docx for maximum Copilot Studio compatibility
 
 ## Prerequisites
 
@@ -56,22 +57,41 @@ Download your SharePoint files and place them in the `input-files` folder:
 npm run optimize
 ```
 
+> **Tip**: You can set a default export format in your `.env` file to skip the format selection:
+```bash
+EXPORT_FORMAT=txt  # Best for Copilot Studio
+```
+
 ### 3. Interactive Workflow
 
-For each file, you'll see:
+The tool processes files one at a time with full control:
 
+**Step 1: File Preview**
+- See file name, size, and type
+- Decide whether to process or skip this file
+
+**Step 2: Export Format Selection** (first file only)
+- Choose output format: txt, md, docx, or original
+- This format applies to all files in the session
+
+**Step 3: Review Optimization**
+For each file you choose to process, you'll see:
 - **File information**: Original size, word count, page estimate
 - **Optimization results**: Optimized content preview, word count changes
 - **Accuracy check**: Validation that all information is preserved
 - **Preview**: First 500 characters of optimized content
 
-Then choose an action:
-
+**Step 4: Choose Action**
 - **[a] Approve and save** - Save the optimized file
 - **[r] Reject and skip** - Skip this file without saving
 - **[v] View full comparison** - See detailed side-by-side comparison
 - **[e] Edit prompt and retry** - Customize optimization instructions
 - **[s] Split into topics** - Split large documents into separate files (if applicable)
+
+**Benefits:**
+- Skip files you don't want to process
+- Review each file before committing
+- Take breaks at any point without losing progress
 
 ### 4. Progress Tracking
 
@@ -93,9 +113,10 @@ Progress is saved in `progress.json` and tracks:
 
 ### 5. Review Output
 
-Optimized files are saved to the `output-files` folder with the naming pattern:
-- `original-name_optimized.docx` (for Word documents)
-- `original-name_optimized.md` (for PDFs, converted to markdown)
+Optimized files are saved to the `output-files` folder with the naming pattern based on your chosen export format:
+- `original-name_optimized.txt` (Plain text format)
+- `original-name_optimized.md` (Markdown format)
+- `original-name_optimized.docx` (Word document format)
 
 ### 6. Upload to SharePoint
 
@@ -119,10 +140,18 @@ Edit `config.json` to customize:
 
 Or use environment variables in `.env`:
 
-```
+```bash
+# Export format: txt, md, docx, or original
+EXPORT_FORMAT=txt
+
+# Optimization thresholds
 MAX_PAGES_BEFORE_SPLIT=10
 MIN_WORDS_PER_TOPIC=500
 WORD_COUNT_REDUCTION_THRESHOLD=0.20
+
+# Folder paths
+INPUT_FOLDER=./input-files
+OUTPUT_FOLDER=./output-files
 ```
 
 ## How It Works

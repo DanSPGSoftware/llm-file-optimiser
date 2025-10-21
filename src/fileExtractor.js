@@ -1,6 +1,7 @@
-import fs from 'fs/promises';
-import path from 'path';
-import mammoth from 'mammoth';
+import fs from "fs/promises";
+import path from "path";
+import mammoth from "mammoth";
+import { PDFParse } from "pdf-parse";
 
 /**
  * Extract text content from various file formats
@@ -14,18 +15,20 @@ export class FileExtractor {
 
     try {
       switch (ext) {
-        case '.docx':
+        case ".docx":
           return await this.extractWordContent(filePath);
-        case '.pdf':
+        case ".pdf":
           return await this.extractPdfContent(filePath);
-        case '.txt':
-        case '.md':
+        case ".txt":
+        case ".md":
           return await this.extractTextContent(filePath);
         default:
           throw new Error(`Unsupported file format: ${ext}`);
       }
     } catch (error) {
-      throw new Error(`Failed to extract content from ${filePath}: ${error.message}`);
+      throw new Error(
+        `Failed to extract content from ${filePath}: ${error.message}`
+      );
     }
   }
 
@@ -40,7 +43,7 @@ export class FileExtractor {
       text: result.value,
       wordCount: this.countWords(result.value),
       pageEstimate: Math.ceil(this.countWords(result.value) / 500), // ~500 words per page
-      format: 'docx'
+      format: "docx",
     };
   }
 
@@ -48,17 +51,19 @@ export class FileExtractor {
    * Extract text from PDF
    */
   async extractPdfContent(filePath) {
-    // Lazy import to avoid pdf-parse initialization issues
-    const pdfParse = (await import('pdf-parse')).default;
-
+    // Use pdf-parse v2 API
     const buffer = await fs.readFile(filePath);
-    const data = await pdfParse(buffer);
+    const parser = new PDFParse({ data: buffer });
+
+    const textResult = await parser.getText();
+    const infoResult = await parser.getInfo();
+    await parser.destroy();
 
     return {
-      text: data.text,
-      wordCount: this.countWords(data.text),
-      pageEstimate: data.numpages,
-      format: 'pdf'
+      text: textResult.text,
+      wordCount: this.countWords(textResult.text),
+      pageEstimate: infoResult.total,
+      format: "pdf",
     };
   }
 
@@ -66,13 +71,13 @@ export class FileExtractor {
    * Extract text from plain text files
    */
   async extractTextContent(filePath) {
-    const text = await fs.readFile(filePath, 'utf-8');
+    const text = await fs.readFile(filePath, "utf-8");
 
     return {
       text,
       wordCount: this.countWords(text),
       pageEstimate: Math.ceil(this.countWords(text) / 500),
-      format: 'text'
+      format: "text",
     };
   }
 
@@ -80,14 +85,17 @@ export class FileExtractor {
    * Count words in text
    */
   countWords(text) {
-    return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+    return text
+      .trim()
+      .split(/\s+/)
+      .filter((word) => word.length > 0).length;
   }
 
   /**
    * Scan directory for supported files
    */
   async scanDirectory(dirPath) {
-    const supportedExtensions = ['.docx', '.pdf', '.txt', '.md'];
+    const supportedExtensions = [".docx", ".pdf", ".txt", ".md"];
     const files = [];
 
     try {
@@ -96,7 +104,7 @@ export class FileExtractor {
       for (const entry of entries) {
         if (entry.isFile()) {
           // Skip temporary/hidden files
-          if (entry.name.startsWith('~$') || entry.name.startsWith('.')) {
+          if (entry.name.startsWith("~$") || entry.name.startsWith(".")) {
             continue;
           }
 
@@ -110,7 +118,7 @@ export class FileExtractor {
               path: fullPath,
               extension: ext,
               size: stats.size,
-              modified: stats.mtime
+              modified: stats.mtime,
             });
           }
         }
