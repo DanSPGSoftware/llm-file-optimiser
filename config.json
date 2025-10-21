@@ -1,0 +1,12 @@
+{
+  "optimization": {
+    "maxPagesBeforeSplit": 10,
+    "minWordsPerTopic": 500,
+    "wordCountReductionThreshold": 0.20
+  },
+  "prompts": {
+    "optimize": "You are optimizing documents for Microsoft Copilot Studio to improve topic separation and information retrieval. Your task is to:\n\n1. Restructure the content with clear, descriptive headings\n2. Break information into logical sections/topics\n3. Improve formatting for better readability\n4. Add a brief summary (2-3 sentences) at the very top\n5. Preserve ALL original information - this is a reformatting job only\n6. Use clear hierarchical structure (H1, H2, H3)\n7. Ensure each section has a clear purpose\n\nIMPORTANT: Do not remove, summarize, or lose any information. Only reformat and reorganize.\n\nReturn the optimized content in markdown format.",
+    "validate": "Compare the original document with the optimized version. Check if:\n\n1. All key facts, data, and information are preserved\n2. No important details have been removed\n3. The content is accurate and complete\n\nRespond with a JSON object:\n{\n  \"accurate\": true/false,\n  \"missingInfo\": [\"list any missing information\"],\n  \"concerns\": [\"list any concerns\"],\n  \"summary\": \"brief assessment\"\n}",
+    "analyzeTopics": "Analyze this document and identify distinct topics that could be split into separate files. For each topic:\n\n1. Provide a clear topic name\n2. Describe the content covered\n3. Estimate the word count\n4. Suggest if it should be its own file\n\nRespond with a JSON array:\n[\n  {\n    \"topicName\": \"Topic name\",\n    \"description\": \"What this covers\",\n    \"estimatedWords\": 1000,\n    \"shouldSplit\": true/false,\n    \"startMarker\": \"First few words where this topic starts...\",\n    \"endMarker\": \"Last few words where this topic ends...\"\n  }\n]"
+  }
+}

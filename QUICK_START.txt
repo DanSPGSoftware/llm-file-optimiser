@@ -1,0 +1,62 @@
+╔═══════════════════════════════════════════════════════════╗
+║         SharePoint File Optimizer - Quick Start          ║
+╚═══════════════════════════════════════════════════════════╝
+
+📋 SETUP (First Time Only)
+──────────────────────────────────────────────────────────
+1. Get Claude API key from: https://console.anthropic.com/
+2. Edit .env file and add your API key
+3. Done!
+
+📁 TO USE
+──────────────────────────────────────────────────────────
+1. Download SharePoint files
+2. Copy to: input-files/
+3. Run: npm run optimize
+4. Follow the interactive prompts
+5. Find optimized files in: output-files/
+6. Upload to SharePoint
+
+⌨️  INTERACTIVE COMMANDS
+──────────────────────────────────────────────────────────
+[a] Approve and save         - Keep this optimized version
+[r] Reject and skip          - Don't save this file
+[v] View full comparison     - See all changes
+[e] Edit prompt and retry    - Customize optimization
+[s] Split into topics        - Break large docs into files
+
+💾 PROGRESS TRACKING
+──────────────────────────────────────────────────────────
+✓ Automatically saves after each file
+✓ Stop anytime (Ctrl+C) and resume later
+✓ On resume: [c] Continue, [r] Reset, [v] View processed
+✓ Process in batches of 5-10 files - no need to do all at once
+
+✅ WHAT IT DOES
+──────────────────────────────────────────────────────────
+✓ Adds clear headings and structure
+✓ Improves readability and formatting
+✓ Generates summary for metadata
+✓ Preserves ALL original information
+✓ Validates accuracy automatically
+✓ Optimizes for Copilot Studio retrieval
+
+📊 FILE SUPPORT
+──────────────────────────────────────────────────────────
+✓ Word documents (.docx)
+✓ PDF files (.pdf)
+✓ Text files (.txt, .md)
+
+🚀 READY TO START?
+──────────────────────────────────────────────────────────
+1. Add files to input-files/
+2. cd /Users/danielrichards/Desktop/Development/Projects/arvato
+3. npm run optimize
+
+📖 MORE INFO
+──────────────────────────────────────────────────────────
+• Full guide: README.md
+• Setup help: SETUP.md
+• Overview: PROJECT_SUMMARY.md
+
+Need help? Check the README.md troubleshooting section!
