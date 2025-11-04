@@ -160,8 +160,17 @@ Respond ONLY with a valid JSON array (no markdown, no code blocks):
 7. Ensure each section has a clear purpose
 8. Use bullet points and numbered lists where appropriate
 9. Bold key terms and concepts
+10. **TABLES**: Detect any table-like structures and convert them into formatted numbered lists with clear labels:
+    - Tables may be marked with [TABLE START] and [TABLE END] tags
+    - Look for rows/columns of data separated by tabs, pipes (|), or multiple spaces
+    - Example conversion: "Name    Age    City" → "1. Name: John | Age: 30 | City: NYC"
+    - Use the first row as labels if it appears to be a header
+    - Remove the [TABLE START] and [TABLE END] markers in your output
 
-IMPORTANT: Do not remove, summarize, or lose any information. Only reformat and reorganize.
+IMPORTANT:
+- Do not remove, summarize, or lose any information. Only reformat and reorganize.
+- Pay special attention to tabular data and ensure it's converted to clear, readable list format.
+- Preserve all data values exactly as they appear.
 
 Return the optimized content in markdown format.`;
   }

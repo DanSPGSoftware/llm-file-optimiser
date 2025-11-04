@@ -6,8 +6,9 @@
   "type": "module",
   "scripts": {
     "optimize": "node src/optimize-files.js",
+    "split": "node src/split-files.js",
     "setup": "node src/setup.js",
-    "reset": "rm -f progress.json && echo 'Progress reset!'"
+    "reset": "rm -f progress.json split-progress.json && echo 'Progress reset!'"
   },
   "keywords": [
     "sharepoint",

@@ -1,0 +1,27 @@
+{
+  "processedFiles": [
+    {
+      "path": "/Users/danielrichards/Desktop/arvato-docs/test-split/Annual Leave Policy Corporate V4.1_optimized.txt",
+      "name": "Annual Leave Policy Corporate V4.1_optimized.txt",
+      "action": "split",
+      "processedAt": "2025-11-04T16:38:55.892Z",
+      "outputFiles": [
+        "/Users/danielrichards/Desktop/arvato-docs/optimised-HR/Annual Leave Policy Corporate V4.1_optimized/document-information-and-version-history.txt",
+        "/Users/danielrichards/Desktop/arvato-docs/optimised-HR/Annual Leave Policy Corporate V4.1_optimized/purpose-and-core-policy-framework.txt",
+        "/Users/danielrichards/Desktop/arvato-docs/optimised-HR/Annual Leave Policy Corporate V4.1_optimized/leave-entitlements-and-calculations.txt",
+        "/Users/danielrichards/Desktop/arvato-docs/optimised-HR/Annual Leave Policy Corporate V4.1_optimized/statutory-and-bank-holiday-arrangements.txt",
+        "/Users/danielrichards/Desktop/arvato-docs/optimised-HR/Annual Leave Policy Corporate V4.1_optimized/annual-leave-and-sickness-intersection.txt",
+        "/Users/danielrichards/Desktop/arvato-docs/optimised-HR/Annual Leave Policy Corporate V4.1_optimized/booking-procedures-and-approval-process.txt",
+        "/Users/danielrichards/Desktop/arvato-docs/optimised-HR/Annual Leave Policy Corporate V4.1_optimized/roles-and-responsibilities.txt",
+        "/Users/danielrichards/Desktop/arvato-docs/optimised-HR/Annual Leave Policy Corporate V4.1_optimized/annual-leave-scheduling-and-carryover-guidelines.txt"
+      ]
+    }
+  ],
+  "lastRunDate": "2025-11-04T16:38:55.893Z",
+  "totalProcessed": 1,
+  "stats": {
+    "approved": 0,
+    "rejected": 0,
+    "split": 1
+  }
+}

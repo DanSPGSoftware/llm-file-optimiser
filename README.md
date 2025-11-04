@@ -51,10 +51,16 @@ Download your SharePoint files and place them in the `input-files` folder:
 # Just copy your .docx and .pdf files there
 ```
 
-### 2. Run the Optimizer
+### 2. Choose Your Mode
 
+**Option A: Full Optimization Mode** (optimize and optionally split)
 ```bash
 npm run optimize
+```
+
+**Option B: Split-Only Mode** (batch split documents into topics)
+```bash
+npm run split
 ```
 
 > **Tip**: You can set a default export format in your `.env` file to skip the format selection:
@@ -62,7 +68,7 @@ npm run optimize
 EXPORT_FORMAT=txt  # Best for Copilot Studio
 ```
 
-### 3. Interactive Workflow
+### 3. Interactive Workflow (Optimize Mode)
 
 The tool processes files one at a time with full control:
 
@@ -118,6 +124,47 @@ Optimized files are saved to the `output-files` folder with the naming pattern b
 - `original-name_optimized.md` (Markdown format)
 - `original-name_optimized.docx` (Word document format)
 
+### Split-Only Mode Workflow
+
+Use this mode to batch process files specifically for topic splitting:
+
+**When to Use Split Mode:**
+- You've already optimized files and now want to split them
+- You have large documents that need to be divided into topics
+- You want to process multiple files for splitting without manual review each time
+
+**How It Works:**
+
+1. **Place files in input folder** - Add the files you want to split
+2. **Run split mode**:
+   ```bash
+   npm run split
+   ```
+3. **For each file:**
+   - Extracts content and shows document stats
+   - Warns if document is small (< 5 pages by default)
+   - Analyzes document for distinct topics using Claude AI
+   - Shows topic suggestions with descriptions
+   - Asks for confirmation before splitting
+   - Splits and optimizes each topic in parallel batches
+   - Saves separate files for each topic
+
+4. **Progress tracking**: Split mode maintains separate progress in `split-progress.json`
+5. **Output files**: Creates a subfolder for each split document:
+   ```
+   output-files/
+     file-to-split/
+       topic-1-name.txt
+       topic-2-name.txt
+       topic-3-name.txt
+   ```
+
+**Configuration:**
+```bash
+MIN_PAGES_FOR_SPLIT=5  # Minimum pages before suggesting split
+CONCURRENT_TOPIC_OPTIMIZATIONS=3  # Topics to process in parallel
+```
+
 ### 6. Upload to SharePoint
 
 1. Review the optimized files in the `output-files` folder
@@ -145,9 +192,13 @@ Or use environment variables in `.env`:
 EXPORT_FORMAT=txt
 
 # Optimization thresholds
-MAX_PAGES_BEFORE_SPLIT=10
-MIN_WORDS_PER_TOPIC=500
-WORD_COUNT_REDUCTION_THRESHOLD=0.20
+MAX_PAGES_BEFORE_SPLIT=10          # Pages before split option shown (optimize mode)
+MIN_PAGES_FOR_SPLIT=5              # Minimum pages for split recommendation (split mode)
+MIN_WORDS_PER_TOPIC=500            # Minimum words for a split topic
+WORD_COUNT_REDUCTION_THRESHOLD=0.20 # Alert if >20% content reduction
+
+# Performance settings
+CONCURRENT_TOPIC_OPTIMIZATIONS=3   # Topics to optimize in parallel (3=Free tier, 5-10=Build, 10+=Scale)
 
 # Folder paths
 INPUT_FOLDER=./input-files
@@ -176,8 +227,18 @@ For documents exceeding the page threshold:
 1. Claude analyzes the document for distinct topics
 2. Suggests split points with topic names and descriptions
 3. User approves or rejects the split
-4. Creates separate optimized files for each topic
-5. Each file gets its own summary and metadata
+4. Creates a subfolder named after the original document
+5. Saves separate optimized files for each topic inside the subfolder
+6. Each file gets its own summary and metadata
+
+**Example Output Structure:**
+```
+output-files/
+  HR-Policy-Manual/
+    employee-benefits.txt
+    leave-policies.txt
+    code-of-conduct.txt
+```
 
 ## Troubleshooting
 
@@ -224,17 +285,20 @@ If Claude detects missing information:
 ```
 arvato/
 ├── src/
-│   ├── optimize-files.js    # Main orchestration script
-│   ├── fileExtractor.js     # Content extraction (Word, PDF)
+│   ├── optimize-files.js    # Main optimization workflow
+│   ├── split-files.js       # Split-only mode workflow
+│   ├── fileExtractor.js     # Content extraction (Word, PDF) with table detection
 │   ├── claudeClient.js      # Claude AI integration
 │   ├── fileWriter.js        # File writing with metadata
 │   ├── cli.js               # Interactive command-line interface
-│   └── progressTracker.js   # Progress tracking and resume
+│   ├── progressTracker.js   # Progress tracking and resume
+│   └── tableConverter.js    # Table detection and conversion
 ├── input-files/             # Place your files here
 ├── output-files/            # Optimized files appear here
-├── progress.json            # Processing progress (auto-generated)
+├── progress.json            # Optimize mode progress (auto-generated)
+├── split-progress.json      # Split mode progress (auto-generated)
 ├── config.json              # Configuration settings
-├── .env                     # Environment variables (API key)
+├── .env                     # Environment variables (API key, settings)
 └── package.json             # Node.js dependencies
 ```
 
@@ -244,9 +308,15 @@ arvato/
 2. **Use Comparison**: For important documents, view the full comparison
 3. **Custom Prompts**: If default optimization doesn't fit your needs, use custom prompts
 4. **Split Large Docs**: Take advantage of topic splitting for better Copilot Studio retrieval
+   - Use **split mode** (`npm run split`) for batch splitting multiple documents
+   - Faster processing with parallel topic optimization (configurable batch size)
 5. **Consistent Naming**: Keep original filenames consistent for easier tracking
 6. **Process in Batches**: Don't try to do all 30 files at once - do 5-10, take a break, resume later
 7. **Progress is Saved**: Don't worry about losing progress - every file is tracked automatically
+8. **Performance Tuning**: Adjust `CONCURRENT_TOPIC_OPTIMIZATIONS` based on your Claude API tier
+   - Free tier: Keep at 3
+   - Build tier: Increase to 5-10 for faster splitting
+   - Scale tier: Set to 10+ for maximum speed
 
 ## Next Steps
 

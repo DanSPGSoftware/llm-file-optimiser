@@ -331,6 +331,10 @@ ${content}`;
     const baseName = path.basename(originalFilePath, path.extname(originalFilePath));
     const savedFiles = [];
 
+    // Create subfolder for this document's split files
+    const splitFolder = path.join(outputDir, baseName);
+    await fs.mkdir(splitFolder, { recursive: true });
+
     // Determine output format
     let outputFormat = this.exportFormat;
     if (outputFormat === 'original') {
@@ -346,17 +350,17 @@ ${content}`;
       let outputPath;
       switch (outputFormat) {
         case 'txt':
-          outputPath = path.join(outputDir, `${baseName}_${sanitizedTopicName}.txt`);
+          outputPath = path.join(splitFolder, `${sanitizedTopicName}.txt`);
           await this.saveAsText(outputPath, content, topic.description);
           break;
 
         case 'md':
-          outputPath = path.join(outputDir, `${baseName}_${sanitizedTopicName}.md`);
+          outputPath = path.join(splitFolder, `${sanitizedTopicName}.md`);
           await this.saveAsMarkdown(outputPath, content, topic.description);
           break;
 
         case 'docx':
-          outputPath = path.join(outputDir, `${baseName}_${sanitizedTopicName}.docx`);
+          outputPath = path.join(splitFolder, `${sanitizedTopicName}.docx`);
           await this.saveAsWordDocument(outputPath, content, topic.description);
           break;
 

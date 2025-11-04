@@ -16,45 +16,50 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 /**
- * Main orchestrator for file optimization
+ * Split-only mode for batch processing files into topics
  */
-class FileOptimizer {
+class FileSplitter {
   constructor() {
     this.extractor = new FileExtractor();
     this.claudeClient = null;
-    this.writer = null; // Will be initialized with format
+    this.writer = null;
     this.cli = new CLI();
-    this.progressTracker = new ProgressTracker('./progress.json');
+    this.progressTracker = new ProgressTracker('./split-progress.json');
 
     this.inputFolder = process.env.INPUT_FOLDER || './input-files';
     this.outputFolder = process.env.OUTPUT_FOLDER || './output-files';
-    this.maxPagesBeforeSplit = parseInt(process.env.MAX_PAGES_BEFORE_SPLIT || '10');
-    this.exportFormat = process.env.EXPORT_FORMAT || null; // Will prompt if not set
+    this.exportFormat = process.env.EXPORT_FORMAT || null;
     this.concurrentTopicOptimizations = parseInt(process.env.CONCURRENT_TOPIC_OPTIMIZATIONS || '3');
+    this.minPagesForSplit = parseInt(process.env.MIN_PAGES_FOR_SPLIT || '5');
   }
 
   /**
-   * Initialize the optimizer
+   * Initialize the splitter
    */
   async initialize() {
-    // Check for API key
     if (!process.env.ANTHROPIC_API_KEY) {
       throw new Error('ANTHROPIC_API_KEY not found in .env file. Please add your Claude API key.');
     }
 
     this.claudeClient = new ClaudeClient(process.env.ANTHROPIC_API_KEY);
 
-    // Resolve paths
     this.inputFolder = path.resolve(this.inputFolder);
     this.outputFolder = path.resolve(this.outputFolder);
   }
 
   /**
-   * Process all files in the input folder
+   * Process all files in split mode
    */
   async processFiles() {
     try {
       await this.initialize();
+
+      console.clear();
+      console.log('\n╔════════════════════════════════════════════════════════╗');
+      console.log('║         SPLIT MODE - Topic File Splitter              ║');
+      console.log('╚════════════════════════════════════════════════════════╝\n');
+      console.log('This mode analyzes documents and splits them into');
+      console.log('separate topic-focused files without full optimization.\n');
 
       // Load progress
       await this.progressTracker.load();
@@ -65,28 +70,24 @@ class FileOptimizer {
       const allFiles = await this.extractor.scanDirectory(this.inputFolder);
 
       if (allFiles.length === 0) {
-        console.log('\nNo files found in input folder. Please add .docx or .pdf files to:');
+        console.log('\nNo files found in input folder. Please add files to:');
         console.log(this.inputFolder);
         return;
       }
 
-      // Check if we have previous progress
+      // Check for previous progress
       let filesToProcess = allFiles;
 
       if (progressStats.totalProcessed > 0) {
-        // Show progress and ask what to do
-        this.cli.displayWelcome(allFiles.length, progressStats);
+        console.log(`\n📊 Previous split progress found: ${progressStats.totalProcessed} files processed\n`);
 
-        let action = await this.cli.promptResumeOrReset();
+        const action = await this.cli.promptResumeOrReset();
 
-        while (action === 'view') {
+        if (action === 'view') {
           this.cli.displayProcessedFiles(this.progressTracker.getProcessedFiles());
           await this.cli.waitForEnter();
-          this.cli.displayWelcome(allFiles.length, progressStats);
-          action = await this.cli.promptResumeOrReset();
-        }
-
-        if (action === 'reset') {
+          return await this.processFiles();
+        } else if (action === 'reset') {
           await this.progressTracker.reset();
           console.log('\n✓ Progress reset. Starting fresh...\n');
           filesToProcess = allFiles;
@@ -94,58 +95,51 @@ class FileOptimizer {
           console.log('\nExiting...');
           return;
         } else {
-          // Continue - filter out processed files
           filesToProcess = this.progressTracker.filterUnprocessedFiles(allFiles);
           console.log(`\n✓ Resuming... ${filesToProcess.length} unprocessed files remaining.\n`);
         }
       } else {
-        this.cli.displayWelcome(filesToProcess.length);
+        console.log(`\nFound ${allFiles.length} file(s) to process\n`);
       }
 
       if (filesToProcess.length === 0) {
-        console.log('\n✓ All files have been processed! Check output-files/ for results.\n');
+        console.log('\n✓ All files have been processed!\n');
         return;
+      }
+
+      // Prompt for export format if not set
+      if (!this.exportFormat) {
+        this.exportFormat = await this.cli.promptExportFormat();
+        this.writer = new FileWriter(this.exportFormat);
+        console.log(`\n📄 Export format: ${this.exportFormat.toUpperCase()}\n`);
+      } else {
+        this.writer = new FileWriter(this.exportFormat);
       }
 
       // Process each file
       for (let i = 0; i < filesToProcess.length; i++) {
         const file = filesToProcess[i];
 
-        // Show file info before asking to continue
         console.log('\n' + '═'.repeat(60));
         console.log(`📄 File ${i + 1} of ${filesToProcess.length}: ${file.name}`);
         console.log(`   Size: ${(file.size / 1024).toFixed(2)} KB`);
         console.log(`   Type: ${file.extension}`);
         console.log('═'.repeat(60) + '\n');
 
-        // Ask if user wants to process this file
-        const shouldProcess = await this.cli.promptContinueWithFile(file.name);
-
-        if (!shouldProcess) {
-          console.log(`\n⏭ Skipping ${file.name}...`);
-          continue;
-        }
-
-        // Prompt for export format if not set (only on first processed file)
-        if (!this.exportFormat) {
-          this.exportFormat = await this.cli.promptExportFormat();
-          this.writer = new FileWriter(this.exportFormat);
-          console.log(`\n📄 Export format: ${this.exportFormat.toUpperCase()}\n`);
-        }
-
-        // Process the file
-        const shouldContinue = await this.processFile(file, i + 1, filesToProcess.length);
+        const shouldContinue = await this.splitFile(file, i + 1, filesToProcess.length);
 
         if (!shouldContinue) {
           console.log('\nProcessing cancelled by user.');
           console.log('Progress has been saved. Run again to continue.\n');
           break;
         }
-
-        this.cli.displayProgress();
       }
 
-      this.cli.displayCompletionSummary(this.outputFolder);
+      console.log('\n' + '═'.repeat(60));
+      console.log('✓ Split processing complete!');
+      console.log(`Output files: ${this.outputFolder}`);
+      console.log('═'.repeat(60) + '\n');
+
     } catch (error) {
       this.cli.displayError(error.message);
       console.error(error);
@@ -154,157 +148,78 @@ class FileOptimizer {
   }
 
   /**
-   * Process a single file
+   * Split a single file into topics
    */
-  async processFile(file, currentIndex, totalFiles) {
+  async splitFile(file, currentIndex, totalFiles) {
     try {
       // Extract content
-      this.cli.displayFileHeader(file.name, currentIndex, totalFiles, {});
       this.cli.displayProcessing('Extracting content');
-
       const extractedContent = await this.extractor.extractContent(file.path);
 
-      this.cli.displayFileHeader(file.name, currentIndex, totalFiles, extractedContent);
+      console.log(`\n📊 Document Info:`);
+      console.log(`   Words: ${extractedContent.wordCount}`);
+      console.log(`   Estimated pages: ${extractedContent.pageEstimate}`);
 
       // Check if file is large enough to consider splitting
-      const canSplit = extractedContent.pageEstimate >= this.maxPagesBeforeSplit;
+      if (extractedContent.pageEstimate < this.minPagesForSplit) {
+        console.log(`\n⚠ Document is only ${extractedContent.pageEstimate} page(s).`);
+        console.log(`   Splitting recommended for documents ≥ ${this.minPagesForSplit} pages.`);
 
-      // Optimization loop (allows retry with different prompts)
-      let optimizedContent = null;
-      let validationResult = null;
-      let customPrompt = null;
+        const response = await this.cli.promptContinue('\nAnalyze for topics anyway?');
 
-      while (true) {
-        // Optimize content
-        this.cli.displayProcessing('Optimizing content with Claude AI');
-        optimizedContent = await this.claudeClient.optimizeContent(
-          extractedContent.text,
-          customPrompt
-        );
-
-        // Validate accuracy
-        this.cli.displayProcessing('Validating accuracy');
-        validationResult = await this.claudeClient.validateAccuracy(
-          extractedContent.text,
-          optimizedContent
-        );
-
-        // Calculate optimized info
-        const optimizedInfo = {
-          wordCount: this.extractor.countWords(optimizedContent),
-          pageEstimate: Math.ceil(this.extractor.countWords(optimizedContent) / 500),
-          originalWordCount: extractedContent.wordCount
-        };
-
-        // Display results
-        this.cli.displayOptimizationResults(optimizedInfo, validationResult);
-        this.cli.displayPreview(optimizedContent);
-
-        // Get user action
-        const action = await this.cli.promptMainAction(canSplit);
-
-        if (action === 'approve') {
-          // Generate summary and save
-          this.cli.displayProcessing('Generating summary');
-          const summary = await this.claudeClient.generateSummary(optimizedContent);
-
-          this.cli.displayProcessing('Saving optimized file');
-          const savedPath = await this.writer.saveOptimizedContent(
-            file.path,
-            optimizedContent,
-            summary,
-            this.outputFolder
-          );
-
-          console.log(`\n✓ Saved: ${path.basename(savedPath)}`);
-          this.cli.approvedCount++;
-
-          // Mark as processed
+        if (!response) {
+          console.log('\n⏭ Skipping file...');
           await this.progressTracker.markProcessed(
             file.path,
             file.name,
-            'approved',
-            [savedPath]
-          );
-
-          return true;
-
-        } else if (action === 'reject') {
-          console.log('\n✗ File rejected, skipping...');
-          this.cli.rejectedCount++;
-
-          // Mark as processed (rejected)
-          await this.progressTracker.markProcessed(
-            file.path,
-            file.name,
-            'rejected',
+            'skipped',
             []
           );
-
           return true;
-
-        } else if (action === 'view') {
-          // Show full comparison
-          this.cli.displayComparison(extractedContent.text, optimizedContent);
-          await this.cli.waitForEnter();
-          console.clear();
-          this.cli.displayFileHeader(file.name, currentIndex, totalFiles, extractedContent);
-          this.cli.displayOptimizationResults(optimizedInfo, validationResult);
-          this.cli.displayPreview(optimizedContent);
-          continue;
-
-        } else if (action === 'edit') {
-          // Get custom prompt and retry
-          customPrompt = await this.cli.promptCustomPrompt(
-            this.claudeClient.getDefaultOptimizationPrompt()
-          );
-          console.log('\n⟳ Retrying with custom prompt...');
-          continue;
-
-        } else if (action === 'split') {
-          // Analyze and split into topics
-          await this.handleFileSplit(file, extractedContent);
-          return true;
-
-        } else {
-          // User cancelled
-          return false;
         }
       }
-    } catch (error) {
-      this.cli.displayError(`Failed to process ${file.name}: ${error.message}`);
-      console.error(error);
 
-      const shouldContinue = await this.cli.confirmContinue();
-      return shouldContinue;
-    }
-  }
-
-  /**
-   * Handle file splitting into topics
-   */
-  async handleFileSplit(file, extractedContent) {
-    try {
+      // Analyze topics
       this.cli.displayProcessing('Analyzing document topics');
       const topics = await this.claudeClient.analyzeTopics(extractedContent.text);
 
       if (topics.length <= 1) {
         console.log('\n⚠ Document appears to be a single topic. Split not recommended.');
-        return;
+
+        const response = await this.cli.promptContinue('\nMark as processed and continue?');
+
+        await this.progressTracker.markProcessed(
+          file.path,
+          file.name,
+          'single-topic',
+          []
+        );
+
+        return response;
       }
 
+      // Display topic suggestions
       this.cli.displayTopicSuggestions(topics);
 
+      // Confirm split
       const confirmed = await this.cli.promptTopicSplitConfirmation(topics);
 
       if (!confirmed) {
         console.log('\n✗ Split cancelled.');
-        return;
+
+        await this.progressTracker.markProcessed(
+          file.path,
+          file.name,
+          'rejected',
+          []
+        );
+
+        return true;
       }
 
+      // Optimize and split topics in batches
       this.cli.displayProcessing(`Optimizing ${topics.length} topic files (${this.concurrentTopicOptimizations} at a time)`);
 
-      // Split content by topics and optimize each in batches
       const optimizedContents = [];
       const batchSize = this.concurrentTopicOptimizations;
 
@@ -315,12 +230,11 @@ class FileOptimizer {
 
         console.log(`\n  Batch ${batchNum}/${totalBatches}: Processing ${batch.length} topic(s) in parallel...`);
 
-        // Process this batch in parallel
         const batchPromises = batch.map(async (topic, batchIndex) => {
           const topicNum = i + batchIndex + 1;
           console.log(`    • Topic ${topicNum}/${topics.length}: ${topic.topicName}`);
 
-          // Extract topic content based on markers
+          // Extract topic content
           const topicContent = this.extractTopicContent(
             extractedContent.text,
             topic.startMarker,
@@ -331,7 +245,6 @@ class FileOptimizer {
           return await this.claudeClient.optimizeContent(topicContent);
         });
 
-        // Wait for all topics in this batch to complete
         const batchResults = await Promise.all(batchPromises);
         optimizedContents.push(...batchResults);
 
@@ -351,18 +264,22 @@ class FileOptimizer {
       console.log(`\n✓ Created ${savedFiles.length} split files in folder: ${splitFolderName}/`);
       savedFiles.forEach(f => console.log(`  • ${path.basename(path.dirname(f))}/${path.basename(f)}`));
 
-      this.cli.splitCount++;
-
-      // Mark as processed (split)
+      // Mark as processed
       await this.progressTracker.markProcessed(
         file.path,
         file.name,
         'split',
         savedFiles
       );
+
+      return true;
+
     } catch (error) {
-      this.cli.displayError(`Failed to split file: ${error.message}`);
+      this.cli.displayError(`Failed to split ${file.name}: ${error.message}`);
       console.error(error);
+
+      const shouldContinue = await this.cli.confirmContinue();
+      return shouldContinue;
     }
   }
 
@@ -374,7 +291,6 @@ class FileOptimizer {
     const endIndex = fullContent.indexOf(endMarker, startIndex);
 
     if (startIndex === -1 || endIndex === -1) {
-      // Markers not found, return full content
       return fullContent;
     }
 
@@ -382,6 +298,6 @@ class FileOptimizer {
   }
 }
 
-// Run the optimizer
-const optimizer = new FileOptimizer();
-optimizer.processFiles();
+// Run the splitter
+const splitter = new FileSplitter();
+splitter.processFiles();

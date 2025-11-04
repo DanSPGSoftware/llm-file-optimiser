@@ -385,4 +385,18 @@ export class CLI {
 
     return response.continue;
   }
+
+  /**
+   * Generic continue prompt with custom message
+   */
+  async promptContinue(message) {
+    const response = await prompts({
+      type: 'confirm',
+      name: 'continue',
+      message: message,
+      initial: true
+    });
+
+    return response.continue;
+  }
 }
