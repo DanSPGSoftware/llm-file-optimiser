@@ -131,31 +131,44 @@ Optimized files are saved to the `output-files` folder with the naming pattern b
 
 ### Split-Only Mode Workflow
 
-Use this mode to batch process files specifically for topic splitting:
+Use this mode to interactively split large documents into topic-focused files:
 
 **When to Use Split Mode:**
 - You've already optimized files and now want to split them
 - You have large documents that need to be divided into topics
-- You want to process multiple files for splitting without manual review each time
+- You want full control over which files to split with accuracy validation
 
 **How It Works:**
 
 1. **Place files in input folder** - Add the files you want to split
-2. **Run split mode**:
+2. **Select export format** (first time only):
+   - Choose output format: txt, md, or docx
+   - This format applies to all files in the session
+3. **Run split mode**:
    ```bash
    npm run split
    ```
-3. **For each file:**
-   - Extracts content and shows document stats
+4. **Interactive file selection**:
+   - View list of all files with sizes
+   - Select a file to split, or choose [Exit] to quit
+
+5. **For each selected file**:
+   - Extracts content and shows document stats (words, pages)
    - Warns if document is small (< 5 pages by default)
    - Analyzes document for distinct topics using Claude AI
    - Shows topic suggestions with descriptions
    - Asks for confirmation before splitting
-   - Splits and optimizes each topic in parallel batches
-   - Saves separate files for each topic
+   - Splits and optimizes each topic in parallel batches (3 at a time)
+   - **Validates accuracy** of each split file
+     - Shows which topics passed/failed accuracy check
+     - All information from original must be preserved
+   - **Checks for existing files** in OUTPUT_FOLDER
+     - Shows which files will be replaced
+   - **Asks for confirmation** before replacing existing files
+   - Saves separate files for each topic in a subfolder
+   - Asks if you want to **split another file**
 
-4. **Progress tracking**: Split mode maintains separate progress in `split-progress.json`
-5. **Output files**: Creates a subfolder for each split document:
+6. **Output files**: Creates a subfolder for each split document:
    ```
    output-files/
      file-to-split/
@@ -164,10 +177,18 @@ Use this mode to batch process files specifically for topic splitting:
        topic-3-name.txt
    ```
 
+**Benefits:**
+- Full control - choose which files to split
+- Accuracy validation ensures no information loss
+- Confirmation before replacing existing files
+- Loop workflow - split multiple files in one session
+- Exit anytime without losing completed work
+
 **Configuration:**
 ```bash
 MIN_PAGES_FOR_SPLIT=5  # Minimum pages before suggesting split
 CONCURRENT_TOPIC_OPTIMIZATIONS=3  # Topics to process in parallel
+EXPORT_FORMAT=txt  # Set default format to skip selection prompt
 ```
 
 ### Verify Mode Workflow
@@ -470,7 +491,6 @@ arvato/
 ├── input-files/             # Place your files here
 ├── output-files/            # Optimized files appear here
 ├── progress.json            # Optimize mode progress (auto-generated)
-├── split-progress.json      # Split mode progress (auto-generated)
 ├── config.json              # Configuration settings
 ├── .env                     # Environment variables (API key, settings)
 └── package.json             # Node.js dependencies
@@ -487,7 +507,8 @@ arvato/
    - Perfect for quality assurance before delivery
 4. **Custom Prompts**: If default optimization doesn't fit your needs, use custom prompts
 5. **Split Large Docs**: Take advantage of topic splitting for better Copilot Studio retrieval
-   - Use **split mode** (`npm run split`) for batch splitting multiple documents
+   - Use **split mode** (`npm run split`) for interactive file-by-file splitting
+   - Includes accuracy validation before replacing existing files
    - Faster processing with parallel topic optimization (configurable batch size)
 6. **Consistent Naming**: Keep original filenames consistent for easier tracking
 7. **Process in Batches**: Don't try to do all 30 files at once - do 5-10, take a break, resume later

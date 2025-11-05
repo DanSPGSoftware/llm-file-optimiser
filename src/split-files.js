@@ -56,14 +56,10 @@ class FileSplitter {
 
       console.clear();
       console.log('\n╔════════════════════════════════════════════════════════╗');
-      console.log('║         SPLIT MODE - Topic File Splitter              ║');
+      console.log('║         SPLIT MODE - Interactive Topic Splitter       ║');
       console.log('╚════════════════════════════════════════════════════════╝\n');
-      console.log('This mode analyzes documents and splits them into');
-      console.log('separate topic-focused files without full optimization.\n');
-
-      // Load progress
-      await this.progressTracker.load();
-      const progressStats = this.progressTracker.getStats();
+      console.log('Select files to analyze and split into topic-focused files.');
+      console.log('Each split is verified for accuracy before replacing.\n');
 
       // Scan for files
       this.cli.displayProcessing('Scanning input folder');
@@ -75,37 +71,7 @@ class FileSplitter {
         return;
       }
 
-      // Check for previous progress
-      let filesToProcess = allFiles;
-
-      if (progressStats.totalProcessed > 0) {
-        console.log(`\n📊 Previous split progress found: ${progressStats.totalProcessed} files processed\n`);
-
-        const action = await this.cli.promptResumeOrReset();
-
-        if (action === 'view') {
-          this.cli.displayProcessedFiles(this.progressTracker.getProcessedFiles());
-          await this.cli.waitForEnter();
-          return await this.processFiles();
-        } else if (action === 'reset') {
-          await this.progressTracker.reset();
-          console.log('\n✓ Progress reset. Starting fresh...\n');
-          filesToProcess = allFiles;
-        } else if (action === 'exit') {
-          console.log('\nExiting...');
-          return;
-        } else {
-          filesToProcess = this.progressTracker.filterUnprocessedFiles(allFiles);
-          console.log(`\n✓ Resuming... ${filesToProcess.length} unprocessed files remaining.\n`);
-        }
-      } else {
-        console.log(`\nFound ${allFiles.length} file(s) to process\n`);
-      }
-
-      if (filesToProcess.length === 0) {
-        console.log('\n✓ All files have been processed!\n');
-        return;
-      }
+      console.log(`\nFound ${allFiles.length} file(s) in input folder\n`);
 
       // Prompt for export format if not set
       if (!this.exportFormat) {
@@ -116,29 +82,24 @@ class FileSplitter {
         this.writer = new FileWriter(this.exportFormat);
       }
 
-      // Process each file
-      for (let i = 0; i < filesToProcess.length; i++) {
-        const file = filesToProcess[i];
+      // Interactive file selection loop
+      while (true) {
+        const selectedFile = await this.promptFileSelection(allFiles);
 
-        console.log('\n' + '═'.repeat(60));
-        console.log(`📄 File ${i + 1} of ${filesToProcess.length}: ${file.name}`);
-        console.log(`   Size: ${(file.size / 1024).toFixed(2)} KB`);
-        console.log(`   Type: ${file.extension}`);
-        console.log('═'.repeat(60) + '\n');
+        if (!selectedFile) {
+          console.log('\n👋 Exiting split mode...\n');
+          break;
+        }
 
-        const shouldContinue = await this.splitFile(file, i + 1, filesToProcess.length);
+        await this.splitFile(selectedFile);
 
-        if (!shouldContinue) {
-          console.log('\nProcessing cancelled by user.');
-          console.log('Progress has been saved. Run again to continue.\n');
+        // Ask if they want to split another
+        const continueChoice = await this.cli.promptContinue('\nSplit another file?');
+        if (!continueChoice) {
+          console.log('\n👋 Exiting split mode...\n');
           break;
         }
       }
-
-      console.log('\n' + '═'.repeat(60));
-      console.log('✓ Split processing complete!');
-      console.log(`Output files: ${this.outputFolder}`);
-      console.log('═'.repeat(60) + '\n');
 
     } catch (error) {
       this.cli.displayError(error.message);
@@ -148,12 +109,76 @@ class FileSplitter {
   }
 
   /**
+   * Prompt user to select a file from the list
+   */
+  async promptFileSelection(files) {
+    const prompts = (await import('prompts')).default;
+    const chalk = (await import('chalk')).default;
+
+    // Extract content from files to get page estimates
+    console.log(chalk.gray('  Loading file information...'));
+
+    const filesWithPageInfo = await Promise.all(
+      files.map(async (file) => {
+        try {
+          const content = await this.extractor.extractContent(file.path);
+          return {
+            ...file,
+            pageEstimate: content.pageEstimate
+          };
+        } catch (error) {
+          return {
+            ...file,
+            pageEstimate: '?'
+          };
+        }
+      })
+    );
+
+    // Sort by page count (largest first), put files with '?' at the end
+    filesWithPageInfo.sort((a, b) => {
+      if (a.pageEstimate === '?') return 1;
+      if (b.pageEstimate === '?') return -1;
+      return b.pageEstimate - a.pageEstimate;
+    });
+
+    const choices = filesWithPageInfo.map((file) => ({
+      title: `${file.name} ${chalk.gray(`(${(file.size / 1024).toFixed(2)} KB, ${file.pageEstimate} pages)`)}`,
+      value: file,
+      description: file.extension
+    }));
+
+    choices.push({
+      title: chalk.red('[Exit]'),
+      value: null,
+      description: 'Exit split mode'
+    });
+
+    const response = await prompts({
+      type: 'select',
+      name: 'file',
+      message: 'Select a file to split:',
+      choices,
+      initial: 0
+    });
+
+    return response.file;
+  }
+
+  /**
    * Split a single file into topics
    */
-  async splitFile(file, currentIndex, totalFiles) {
+  async splitFile(file) {
+    const chalk = (await import('chalk')).default;
+
     try {
+      console.log('\n' + '═'.repeat(60));
+      console.log(`📄 Processing: ${file.name}`);
+      console.log(`   Size: ${(file.size / 1024).toFixed(2)} KB`);
+      console.log('═'.repeat(60));
+
       // Extract content
-      this.cli.displayProcessing('Extracting content');
+      this.cli.displayProcessing('\nExtracting content');
       const extractedContent = await this.extractor.extractContent(file.path);
 
       console.log(`\n📊 Document Info:`);
@@ -162,19 +187,13 @@ class FileSplitter {
 
       // Check if file is large enough to consider splitting
       if (extractedContent.pageEstimate < this.minPagesForSplit) {
-        console.log(`\n⚠ Document is only ${extractedContent.pageEstimate} page(s).`);
-        console.log(`   Splitting recommended for documents ≥ ${this.minPagesForSplit} pages.`);
+        console.log(chalk.yellow(`\n⚠ Document is only ${extractedContent.pageEstimate} page(s).`));
+        console.log(chalk.yellow(`   Splitting recommended for documents ≥ ${this.minPagesForSplit} pages.`));
 
         const response = await this.cli.promptContinue('\nAnalyze for topics anyway?');
 
         if (!response) {
-          console.log('\n⏭ Skipping file...');
-          await this.progressTracker.markProcessed(
-            file.path,
-            file.name,
-            'skipped',
-            []
-          );
+          console.log(chalk.gray('\n⏭ Skipping file...'));
           return true;
         }
       }
@@ -184,18 +203,8 @@ class FileSplitter {
       const topics = await this.claudeClient.analyzeTopics(extractedContent.text);
 
       if (topics.length <= 1) {
-        console.log('\n⚠ Document appears to be a single topic. Split not recommended.');
-
-        const response = await this.cli.promptContinue('\nMark as processed and continue?');
-
-        await this.progressTracker.markProcessed(
-          file.path,
-          file.name,
-          'single-topic',
-          []
-        );
-
-        return response;
+        console.log(chalk.yellow('\n⚠ Document appears to be a single topic. Split not recommended.'));
+        return true;
       }
 
       // Display topic suggestions
@@ -205,15 +214,7 @@ class FileSplitter {
       const confirmed = await this.cli.promptTopicSplitConfirmation(topics);
 
       if (!confirmed) {
-        console.log('\n✗ Split cancelled.');
-
-        await this.progressTracker.markProcessed(
-          file.path,
-          file.name,
-          'rejected',
-          []
-        );
-
+        console.log(chalk.gray('\n✗ Split cancelled.'));
         return true;
       }
 
@@ -251,6 +252,84 @@ class FileSplitter {
         console.log(`    ✓ Batch ${batchNum} completed`);
       }
 
+      // Validate accuracy of each split file
+      console.log(chalk.cyan('\n📋 Validating accuracy of split files...\n'));
+
+      let allAccurate = true;
+      for (let i = 0; i < topics.length; i++) {
+        const topic = topics[i];
+        const optimizedContent = optimizedContents[i];
+
+        console.log(`  Checking topic ${i + 1}/${topics.length}: ${topic.topicName}`);
+
+        // Extract original topic content
+        const originalTopicContent = this.extractTopicContent(
+          extractedContent.text,
+          topic.startMarker,
+          topic.endMarker
+        );
+
+        // Validate accuracy
+        const validation = await this.claudeClient.validateAccuracy(
+          originalTopicContent,
+          optimizedContent
+        );
+
+        if (validation.accurate) {
+          console.log(chalk.green(`    ✓ Accurate`));
+        } else {
+          console.log(chalk.red(`    ✗ Failed`));
+          if (validation.missingInfo && validation.missingInfo.length > 0) {
+            console.log(chalk.yellow(`    Missing: ${validation.missingInfo.join(', ')}`));
+          }
+          allAccurate = false;
+        }
+      }
+
+      if (!allAccurate) {
+        console.log(chalk.red('\n⚠ Some split files failed accuracy validation!'));
+        const proceedAnyway = await this.cli.promptContinue('Save split files anyway?');
+
+        if (!proceedAnyway) {
+          console.log(chalk.gray('\n✗ Split cancelled.'));
+          return true;
+        }
+      } else {
+        console.log(chalk.green('\n✓ All split files passed accuracy validation!'));
+      }
+
+      // Check what exists in OUTPUT_FOLDER
+      const baseName = path.basename(file.path, path.extname(file.path));
+      const splitFolderPath = path.join(this.outputFolder, baseName);
+
+      let existingFiles = [];
+      try {
+        const fs = await import('fs/promises');
+        await fs.access(splitFolderPath);
+        const entries = await fs.readdir(splitFolderPath);
+        existingFiles = entries.filter(f => !f.startsWith('.'));
+      } catch (error) {
+        // Folder doesn't exist yet
+      }
+
+      // Show what will be replaced
+      if (existingFiles.length > 0) {
+        console.log(chalk.yellow(`\n⚠ Found existing files in ${baseName}/:`));
+        existingFiles.forEach(f => console.log(chalk.yellow(`  • ${f}`)));
+        console.log(chalk.cyan(`\nWill be replaced with ${topics.length} new split files:`));
+        topics.forEach((t) => {
+          const fileName = this.writer.sanitizeFilename(t.topicName) + `.${this.exportFormat}`;
+          console.log(chalk.cyan(`  • ${fileName}`));
+        });
+
+        const confirmReplace = await this.cli.promptContinue('\nReplace existing files with new split?');
+
+        if (!confirmReplace) {
+          console.log(chalk.gray('\n✗ Split cancelled. Existing files kept.'));
+          return true;
+        }
+      }
+
       // Save split files
       this.cli.displayProcessing('Saving split files');
       const savedFiles = await this.writer.saveSplitFiles(
@@ -260,17 +339,8 @@ class FileSplitter {
         this.outputFolder
       );
 
-      const splitFolderName = path.basename(file.path, path.extname(file.path));
-      console.log(`\n✓ Created ${savedFiles.length} split files in folder: ${splitFolderName}/`);
-      savedFiles.forEach(f => console.log(`  • ${path.basename(path.dirname(f))}/${path.basename(f)}`));
-
-      // Mark as processed
-      await this.progressTracker.markProcessed(
-        file.path,
-        file.name,
-        'split',
-        savedFiles
-      );
+      console.log(chalk.green(`\n✓ Created ${savedFiles.length} split files in folder: ${baseName}/`));
+      savedFiles.forEach(f => console.log(chalk.green(`  • ${path.basename(path.dirname(f))}/${path.basename(f)}`)));
 
       return true;
 
