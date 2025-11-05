@@ -63,6 +63,11 @@ npm run optimize
 npm run split
 ```
 
+**Option C: Verify Mode** (check accuracy of optimized files)
+```bash
+npm run verify
+```
+
 > **Tip**: You can set a default export format in your `.env` file to skip the format selection:
 ```bash
 EXPORT_FORMAT=txt  # Best for Copilot Studio
@@ -165,6 +170,173 @@ MIN_PAGES_FOR_SPLIT=5  # Minimum pages before suggesting split
 CONCURRENT_TOPIC_OPTIMIZATIONS=3  # Topics to process in parallel
 ```
 
+### Verify Mode Workflow
+
+Use this mode to audit the **content accuracy** of previously optimized files:
+
+**What It Checks:**
+- ✓ All facts, data, numbers, dates, and names are preserved
+- ✓ No substantive information was removed or omitted
+- ✓ Semantic meaning and content completeness
+- ✗ **Ignores formatting differences** (headings, bullets, markdown, spacing)
+
+**When to Use Verify Mode:**
+- After batch processing many files, to ensure no information loss
+- To verify content completeness before uploading to SharePoint
+- To re-optimize files that failed content accuracy checks
+- Quality assurance focused on information preservation
+
+**How It Works:**
+
+1. **Place files in both folders:**
+   - Raw originals in `INPUT_FOLDER` (e.g., `file.pdf`)
+   - Optimized versions in `OUTPUT_FOLDER` (e.g., `file_optimized.txt`)
+   - **Supports nested folders:**
+     ```
+     INPUT_FOLDER/
+       Contact Centre/
+         Annual Leave Policy.pdf
+
+     OUTPUT_FOLDER/
+       Contact Centre/
+         Annual Leave Policy/    ← Split files folder
+           leave-types.txt
+           approval-process.txt
+           emergency-leave.txt
+     ```
+
+2. **Run verify mode:**
+   ```bash
+   npm run verify
+   ```
+
+3. **Automatic file matching:**
+   - **Recursively scans both directories** - handles nested folder structures
+   - Matches optimized files with their raw originals using relative paths
+   - Looks for `_optimized` suffix for single files
+   - Detects split file folders (folder named after original file)
+   - Works with files in subfolders (e.g., `Contact Centre/Policy.pdf`)
+   - Shows all matched pairs with their folder paths before starting
+
+4. **For each file pair:**
+   - Shows file information
+   - **Navigation options:**
+     - **[v] Verify this file** - Check accuracy
+     - **[s] Skip this file** - Move to next
+     - **[b] Back to previous file** - Go back and re-verify
+     - **[x] Exit verification** - Stop and show summary
+   - If verifying:
+     - Extracts content from raw file
+     - For split files: combines all topic files into one
+     - Runs Claude AI content accuracy validation (ignores formatting)
+     - Checks if all information/facts are preserved
+     - Reports: content accurate (✓/✗), missing information, concerns
+
+5. **On accuracy failure:**
+   - Shows options:
+     - **[g] Re-optimize with GUIDED prompt** ⭐ (uses accuracy feedback to fix issues)
+     - **[r] Re-optimize with default prompt** (standard re-optimization)
+     - **[c] Re-optimize with custom prompt** (you write the prompt)
+     - **[s] Skip and continue** (keep existing version)
+   - **Asks for confirmation** before re-optimizing
+   - Re-runs optimization and saves the new version
+   - **Automatically re-verifies** the same file
+   - **Loops until passes** or you choose to skip
+   - Can retry multiple times with different approaches
+
+6. **Summary report:**
+   - Total passed, failed, re-optimized, and skipped counts
+   - Re-optimized files are automatically saved
+   - Clear visibility of which files need attention
+
+**Example Output:**
+```
+📁 Raw files: 10
+📁 Optimized items: 10 (7 files, 3 split folders)
+
+File Pairs to Verify:
+1. HR-Policy.pdf → HR-Policy_optimized.txt
+2. Benefits-Guide.pdf → Benefits-Guide/ (5 split files)
+3. Contact Centre/Annual Leave Policy.pdf → Contact Centre/Annual Leave Policy/ (3 split files)
+4. Employee-Handbook.pdf → Employee-Handbook_optimized.txt
+
+════════════════════════════════════════════════════════════
+📄 File 1/10: HR-Policy.pdf
+   Optimized: HR-Policy_optimized.txt
+════════════════════════════════════════════════════════════
+What would you like to do?
+› [v] Verify this file
+  [s] Skip this file
+  [x] Exit verification
+
+  Extracting raw content...
+  Extracting optimized content...
+  Running accuracy check...
+  ✓ Accuracy check PASSED
+
+════════════════════════════════════════════════════════════
+📄 File 2/10: Contact Centre/Annual Leave Policy.pdf
+   Optimized: Contact Centre/Annual Leave Policy/ (3 split files)
+════════════════════════════════════════════════════════════
+What would you like to do?
+› [v] Verify this file
+  [s] Skip this file
+  [b] Back to previous file  ← Available from file 2 onwards
+  [x] Exit verification
+
+  Extracting raw content...
+  Extracting optimized content...
+  Combining 5 split files...
+  Running accuracy check...
+  ✗ Accuracy check FAILED
+  Missing Information:
+    • Contact information for benefits administrator
+    • Emergency contact procedures
+
+  What would you like to do?
+  › [g] Re-optimize with GUIDED prompt (uses accuracy feedback to fix issues)
+    [r] Re-optimize with default prompt (standard re-optimization)
+    [c] Re-optimize with custom prompt (you write the prompt)
+    [s] Skip and continue (keep existing version)
+
+  Re-optimize using accuracy feedback to guide Claude? › yes
+  ⟳ Re-optimizing file...
+  Generating summary...
+  Saving re-optimized file...
+  ✓ File saved. Re-checking accuracy...
+
+  🔄 Verification Attempt 2
+  Extracting optimized content...
+  Running accuracy check...
+  ✓ Accuracy check PASSED
+  ✓ File passed after 2 attempt(s)
+
+Verification Complete
+✓ Passed: 8
+✗ Failed: 0
+⟳ Re-optimized: 1
+⏭ Skipped: 1
+```
+
+**Benefits:**
+- **Full control**: Confirm before verifying each file
+- **Navigate freely**: Go back to previous files if you want to re-verify
+- **Handles nested folders**: Recursively scans subdirectories in both input and output folders
+  - Perfect for organized folder structures (e.g., `HR/`, `Finance/`, `Contact Centre/`)
+  - Matches files across folder hierarchies
+- **Intelligent retry loop**: Re-verifies automatically after each re-optimization
+- **Guided re-optimization** ⭐: Claude learns from accuracy failures
+  - Uses missing information feedback to guide the next optimization
+  - Tells Claude exactly what to include
+  - Much higher success rate than blind re-optimization
+- **Interactive workflow**: Explicit confirmation before each action
+- **Content-focused validation**: Ignores formatting, only checks information completeness
+- Ensures no information loss across all files
+- Perfect for Copilot Studio integration - verifies content while allowing formatting changes
+- Handles both single optimized files and split topic files
+- Automatically combines split files for comprehensive verification
+- Quality assurance before final delivery
+
 ### 6. Upload to SharePoint
 
 1. Review the optimized files in the `output-files` folder
@@ -209,14 +381,15 @@ OUTPUT_FOLDER=./output-files
 
 ### Optimization Process
 
-1. **Content Extraction**: Extracts text from Word/PDF files
-2. **AI Optimization**: Claude AI restructures the content:
+1. **Content Extraction**: Extracts text from Word/PDF files (including tables)
+2. **AI Optimization**: Claude AI restructures the content for Copilot Studio:
    - Adds clear hierarchical headings (H1, H2, H3)
    - Organizes into logical sections
    - Improves readability with bullet points and formatting
+   - Converts tables to formatted lists
    - Adds 2-3 sentence summary at the top
-   - Preserves ALL original information
-3. **Accuracy Validation**: Claude verifies no information was lost
+   - **Preserves ALL original information** (content unchanged, only formatting improved)
+3. **Accuracy Validation**: Claude verifies no information was lost (ignores formatting changes)
 4. **Summary Generation**: Creates concise summary for metadata
 5. **File Creation**: Saves optimized file with embedded metadata
 
@@ -287,6 +460,7 @@ arvato/
 ├── src/
 │   ├── optimize-files.js    # Main optimization workflow
 │   ├── split-files.js       # Split-only mode workflow
+│   ├── verify-files.js      # Verify mode - accuracy checking
 │   ├── fileExtractor.js     # Content extraction (Word, PDF) with table detection
 │   ├── claudeClient.js      # Claude AI integration
 │   ├── fileWriter.js        # File writing with metadata
@@ -306,14 +480,19 @@ arvato/
 
 1. **Review Accuracy**: Always check the accuracy validation results
 2. **Use Comparison**: For important documents, view the full comparison
-3. **Custom Prompts**: If default optimization doesn't fit your needs, use custom prompts
-4. **Split Large Docs**: Take advantage of topic splitting for better Copilot Studio retrieval
+3. **Verify After Batch Processing**: Use **verify mode** (`npm run verify`) to audit all optimized files
+   - Automatically checks accuracy of all optimized files
+   - **Use guided re-optimization** for files that fail - it learns from the errors
+   - Re-verifies automatically after each fix attempt
+   - Perfect for quality assurance before delivery
+4. **Custom Prompts**: If default optimization doesn't fit your needs, use custom prompts
+5. **Split Large Docs**: Take advantage of topic splitting for better Copilot Studio retrieval
    - Use **split mode** (`npm run split`) for batch splitting multiple documents
    - Faster processing with parallel topic optimization (configurable batch size)
-5. **Consistent Naming**: Keep original filenames consistent for easier tracking
-6. **Process in Batches**: Don't try to do all 30 files at once - do 5-10, take a break, resume later
-7. **Progress is Saved**: Don't worry about losing progress - every file is tracked automatically
-8. **Performance Tuning**: Adjust `CONCURRENT_TOPIC_OPTIMIZATIONS` based on your Claude API tier
+6. **Consistent Naming**: Keep original filenames consistent for easier tracking
+7. **Process in Batches**: Don't try to do all 30 files at once - do 5-10, take a break, resume later
+8. **Progress is Saved**: Don't worry about losing progress - every file is tracked automatically
+9. **Performance Tuning**: Adjust `CONCURRENT_TOPIC_OPTIMIZATIONS` based on your Claude API tier
    - Free tier: Keep at 3
    - Build tier: Increase to 5-10 for faster splitting
    - Scale tier: Set to 10+ for maximum speed

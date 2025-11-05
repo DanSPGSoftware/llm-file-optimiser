@@ -35,18 +35,30 @@ export class ClaudeClient {
    * Validate optimized content against original
    */
   async validateAccuracy(originalContent, optimizedContent) {
-    const prompt = `Compare the original document with the optimized version. Check if:
+    const prompt = `Compare the original document with the optimized version for CONTENT ACCURACY ONLY.
 
-1. All key facts, data, and information are preserved
-2. No important details have been removed
-3. The content is accurate and complete
+IMPORTANT: The optimized version has been reformatted for Copilot Studio integration. IGNORE all formatting differences including:
+- Headings, markdown formatting (# ## ###, ** *, etc.)
+- Bullet points, numbered lists, indentation
+- Section organization and structure
+- Line breaks, spacing, capitalization
+- Bolding, italics, or other text styling
+
+ONLY CHECK IF:
+1. All facts, data, numbers, dates, names, and information from the original are present
+2. No substantive information has been removed or omitted
+3. The semantic meaning and content are preserved
+4. No factual errors were introduced
+
+If the information content is complete and accurate (even if formatted differently), mark as accurate=true.
+Only mark as accurate=false if actual information/content is missing or incorrect.
 
 Respond ONLY with a valid JSON object (no markdown, no code blocks):
 {
   "accurate": true or false,
-  "missingInfo": ["list any missing information"],
-  "concerns": ["list any concerns"],
-  "summary": "brief assessment"
+  "missingInfo": ["list ONLY missing facts/data/information, NOT formatting"],
+  "concerns": ["list ONLY concerns about missing/incorrect content, NOT formatting"],
+  "summary": "brief assessment of content completeness"
 }`;
 
     try {
